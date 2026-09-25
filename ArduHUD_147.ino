@@ -21,11 +21,14 @@
 #include "mavlink_mini.h"
 #include "hud_draw.h"
 
+// El panel real se inicializa y rota ANTES de envolverlo en un Canvas (framebuffer en RAM):
+// esto evita "tearing"/artefactos, ya que dibujamos todo en RAM y lo volcamos a la pantalla
+// de una sola vez con flush() en vez de escribir pixel a pixel en vivo sobre el LCD.
 Arduino_DataBus *bus = new Arduino_ESP32SPI(LCD_PIN_DC, LCD_PIN_CS, LCD_PIN_SCK, LCD_PIN_MOSI, GFX_NOT_DEFINED);
-Arduino_GFX *panel = new Arduino_ST7789(bus, GFX_NOT_DEFINED /* RST manual */, 0, false,
+Arduino_GFX *panel = new Arduino_ST7789(bus, LCD_PIN_RST, 0 /* rotation */, false /* IPS */,
                                         LCD_NATIVE_W, LCD_NATIVE_H,
                                         LCD_COL_OFFSET, LCD_ROW_OFFSET, LCD_COL_OFFSET, LCD_ROW_OFFSET);
-Arduino_Canvas *gfx = new Arduino_Canvas(SCREEN_W, SCREEN_H, panel, 0, 0, 1 /* rotation landscape */);
+Arduino_Canvas *gfx = new Arduino_Canvas(SCREEN_W, SCREEN_H, panel, 0, 0, 0 /* el panel ya rota, el canvas no */);
 
 HardwareSerial MavSerial(1);
 Preferences prefs;
@@ -49,14 +52,11 @@ static void saveMode() {
 }
 
 static void initDisplay() {
-  pinMode(LCD_PIN_RST, OUTPUT);
-  digitalWrite(LCD_PIN_RST, LOW);
-  delay(20);
-  digitalWrite(LCD_PIN_RST, HIGH);
-  delay(120);
+  panel->begin();                // reset por hardware (via LCD_PIN_RST) + init base ST7789
+  jd9853_reg_init(bus);          // secuencia correctiva especifica del panel JD9853 (deja MADCTL en portrait)
+  panel->setRotation(1);         // ahora si, rota el PANEL REAL a landscape 320x172
 
-  gfx->begin();
-  jd9853_reg_init(bus);
+  gfx->begin(GFX_SKIP_OUTPUT_BEGIN); // solo reserva el framebuffer en RAM, no vuelve a tocar el panel
 
   pinMode(LCD_PIN_BL, OUTPUT);
   analogWrite(LCD_PIN_BL, UI_BACKLIGHT_DEFAULT);

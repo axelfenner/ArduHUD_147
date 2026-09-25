@@ -89,7 +89,6 @@ static int s_expectedLen = 0;
 static bool s_isV2 = false;
 static uint8_t s_incompatFlags = 0;
 static uint32_t s_msgId = 0;
-static int s_headerLen = 0; // bytes entre STX y payload (incluye STX)
 
 static void resetParser() {
   s_idx = 0;
